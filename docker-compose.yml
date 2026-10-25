@@ -1,0 +1,15 @@
+# One command:  docker compose up --build      then open http://localhost:8000
+# NVIDIA GPU:   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+services:
+  labelassist:
+    build: .
+    image: labelassist:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data # database, uploaded images, model weights, datasets
+    environment:
+      LA_DETECTOR: ${LA_DETECTOR:-yolo11s.pt}
+      LA_SEGMENTER: ${LA_SEGMENTER:-mobile_sam.pt}
+      LA_DEVICE: ${LA_DEVICE:-auto}
+    restart: unless-stopped

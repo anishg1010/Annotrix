@@ -1,0 +1,16 @@
+# GPU override: CUDA build of PyTorch + GPU reservation (needs the NVIDIA Container Toolkit).
+services:
+  labelassist:
+    build:
+      args:
+        TORCH_VARIANT: cu124
+    image: labelassist:gpu
+    environment:
+      LA_SEGMENTER: ${LA_SEGMENTER:-sam2.1_b.pt}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

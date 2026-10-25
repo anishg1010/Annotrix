@@ -1,0 +1,11 @@
+# runtime data (database, uploads, weights, datasets)
+data/
+runs/
+*.pt
+# builds
+frontend/node_modules/
+frontend/dist/
+backend/static/
+__pycache__/
+.pytest_cache/
+.env
