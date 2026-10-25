@@ -1,0 +1,9 @@
+data
+runs
+**/node_modules
+frontend/dist
+backend/static
+eval/results
+**/__pycache__
+.git
+*.pt
