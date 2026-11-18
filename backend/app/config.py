@@ -6,7 +6,7 @@ from pathlib import Path
 
 DATA_DIR = Path(os.getenv("LA_DATA_DIR", Path(__file__).resolve().parents[2] / "data"))
 IMAGES_DIR = DATA_DIR / "images"
-DB_PATH = DATA_DIR / "labelassist.db"
+DB_PATH = DATA_DIR / "annotrix.db"
 WEIGHTS_DIR = Path(os.getenv("LA_WEIGHTS_DIR", DATA_DIR / "weights"))
 
 # Detector used for automatic pre-labelling. Can be a stock Ultralytics name

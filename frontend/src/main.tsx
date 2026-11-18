@@ -11,7 +11,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <header className="topbar">
         <Link to="/" className="brand">
-          <span className="brand-mark">◩</span> LabelAssist
+          <span className="brand-mark">◩</span> Annotrix
         </Link>
         <span className="tagline">AI-assisted image annotation</span>
       </header>

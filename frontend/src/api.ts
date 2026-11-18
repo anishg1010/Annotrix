@@ -1,4 +1,4 @@
-// Thin typed client for the LabelAssist API.
+// Thin typed client for the Annotrix API.
 
 export type Mode = "assisted" | "manual";
 
