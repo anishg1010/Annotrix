@@ -1,9 +1,9 @@
 # One command:  docker compose up --build      then open http://localhost:8000
 # NVIDIA GPU:   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 services:
-  labelassist:
+  annotrix:
     build: .
-    image: labelassist:latest
+    image: annotrix:latest
     ports:
       - "8000:8000"
     volumes:

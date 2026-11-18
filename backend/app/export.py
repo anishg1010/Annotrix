@@ -45,7 +45,7 @@ def build_coco(project: Project, images: list[Image], anns: dict[int, list[Annot
     cat_ids = {l: i + 1 for i, l in enumerate(labels)}
     coco = {
         "info": {
-            "description": f"{project.name} — exported from LabelAssist",
+            "description": f"{project.name} — exported from Annotrix",
             "date_created": datetime.now(timezone.utc).isoformat(),
         },
         "licenses": [],
@@ -136,7 +136,7 @@ def export_zip(
             raise ValueError(f"unknown format {fmt}")
         z.writestr(
             "README.txt",
-            f"Exported from LabelAssist on {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC\n"
+            f"Exported from Annotrix on {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC\n"
             f"Project: {project.name}\nFormat: {fmt}\nImages: {len(images)}\n",
         )
     return buf.getvalue()

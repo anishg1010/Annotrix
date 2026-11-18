@@ -1,4 +1,4 @@
-# LabelAssist — AI-assisted image annotation
+# Annotrix — AI-assisted image annotation
 
 A web app that makes drawing bounding boxes and masks faster by putting computer-vision models
 inside the labelling loop. Built from scratch for the *AI Vision* module (SRH Hochschule Heidelberg,
@@ -126,4 +126,4 @@ code, so the numbers in the report measure exactly what the app runs.
 ## References
 
 Models, libraries and datasets used are cited in [docs/REFERENCES.md](docs/REFERENCES.md).
-Ultralytics (YOLO, SAM wrappers) is AGPL-3.0; publish this repository under a compatible licence (AGPL-3.0).
+Ultralytics (YOLO, SAM wrappers) is AGPL-3.0; this repository is therefore licensed under AGPL-3.0 (see `LICENSE`).

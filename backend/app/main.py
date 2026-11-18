@@ -1,4 +1,4 @@
-"""LabelAssist API — AI-assisted image annotation.
+"""Annotrix API — AI-assisted image annotation.
 
 Run locally:  uvicorn app.main:app --reload   (from the backend/ folder)
 """
@@ -22,7 +22,7 @@ from . import config, ml
 from .db import Annotation, Image, Project, WorkSession, get_session, utcnow
 from .export import export_zip
 
-app = FastAPI(title="LabelAssist", version="0.1.0")
+app = FastAPI(title="Annotrix", version="0.1.0")
 
 
 # --------------------------------------------------------------------------- schemas
