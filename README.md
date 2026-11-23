@@ -91,13 +91,16 @@ python eval/effort.py --manual "Study manual" --assisted "Study assisted"   # af
 
 Results are written to `eval/results/`. The protocol is in [docs/EVALUATION.md](docs/EVALUATION.md).
 
-Baseline numbers (stock COCO detector, CPU, African Wildlife test split, 227 images / 375 objects):
+Detector results (CPU, African Wildlife test split, 227 images / 375 objects):
 
 | detector | mAP@0.5 | mAP@0.5:0.95 | AP50 buffalo | AP50 elephant | AP50 rhino | AP50 zebra |
 |---|---|---|---|---|---|---|
 | yolo11s.pt (COCO) | 0.443 | 0.381 | 0.000 | 0.784 | 0.000 | 0.989 |
+| wildlife-yolo11n-cpu.pt (fine-tuned, 12 epochs on CPU) | **0.955** | **0.797** | 0.959 | 0.966 | 0.950 | 0.945 |
 
-COCO has no buffalo or rhino class, which motivates fine-tuning.
+COCO has no buffalo or rhino class, which motivates fine-tuning. With the fine-tuned detector, 93% of test animals get a correct suggestion and only 23 of 375 boxes must be drawn by hand (92 with the stock model).
+
+To use the fine-tuned detector, put the weights in `data/weights/` and create a `.env` file next to `docker-compose.yml` containing `LA_DETECTOR=wildlife-yolo11n-cpu.pt`.
 
 ---
 

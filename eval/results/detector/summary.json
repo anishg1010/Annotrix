@@ -11,7 +11,7 @@
       "rhino": 0.0,
       "zebra": 0.9869335122932534
     },
-    "latency_ms_median": 95.6,
+    "latency_ms_median": 70.4,
     "actions": {
       "accept": 214,
       "adjust": 14,
@@ -52,7 +52,7 @@
       "rhino": 0.0,
       "zebra": 0.988655401250191
     },
-    "latency_ms_median": 217.6,
+    "latency_ms_median": 167.9,
     "actions": {
       "accept": 219,
       "adjust": 10,
@@ -80,5 +80,35 @@
       "dog": 1,
       "truck": 1
     }
+  },
+  {
+    "weights": "../data/weights/wildlife-yolo11n-cpu.pt",
+    "conf_threshold_for_suggestions": 0.3,
+    "images": 227,
+    "mAP50": 0.9552135452184901,
+    "mAP50_95": 0.7967913050791176,
+    "per_class_AP50": {
+      "buffalo": 0.9593183743075759,
+      "elephant": 0.9662909885431509,
+      "rhino": 0.9502382809229835,
+      "zebra": 0.94500653710025
+    },
+    "latency_ms_median": 50.4,
+    "actions": {
+      "accept": 327,
+      "adjust": 21,
+      "relabel": 4,
+      "delete": 41,
+      "draw": 23,
+      "matched_same_class": 348,
+      "n_gt": 375,
+      "n_suggested": 393
+    },
+    "gt_objects_covered_by_correct_suggestion": 0.928,
+    "boxes_to_draw_manual": 375,
+    "boxes_to_draw_assisted": 23,
+    "total_actions_manual": 375,
+    "total_actions_assisted": 416,
+    "unmapped_model_classes_above_conf": {}
   }
 ]
