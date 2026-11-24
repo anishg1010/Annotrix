@@ -18,6 +18,8 @@ and a built-in **effort log** (active time and edit counts per image) used for t
 
 ![editor](docs/img/editor.png)
 
+**Links:** [Fine-tuned detector on Hugging Face](https://huggingface.co/AnishGaware10/annotrix-wildlife-yolo11n) · [Dataset annotated with Annotrix (COCO, 100 images)](https://huggingface.co/datasets/AnishGaware10/annotrix-wildlife-dataset)
+
 ---
 
 ## Run it — one command
