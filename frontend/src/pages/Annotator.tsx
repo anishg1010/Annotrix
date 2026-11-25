@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Stage, Transformer } from "react-konva";
-import type Konva from "konva";
-import { Ann, api, ImageInfo, labelColor, Project, SessionStats, Source } from "../api";
+import Konva from "konva";
+import { Ann, api, ImageInfo, labelColor, Project, SessionStats, Source, Suggestion } from "../api";
 
 // --------------------------------------------------------------------------- types
 
@@ -59,6 +59,49 @@ function remapPolygon(poly: number[][] | null | undefined, from: Ann, to: Ann): 
   return poly.map(([x, y]) => [to.x + ((x - from.x) / from.w) * to.w, to.y + ((y - from.y) / from.h) * to.h]);
 }
 
+// Histogram equalization on luminance (Lecture 02), applied as a Konva filter.
+// Each pixel's RGB is scaled by new/old luminance, so colours keep their hue.
+function equalizeFilter(imageData: ImageData) {
+  const d = imageData.data;
+  const n = d.length / 4;
+  const hist = new Uint32Array(256);
+  const lum = new Uint8Array(n);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const y = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) | 0;
+    lum[p] = y;
+    hist[y]++;
+  }
+  let acc = 0;
+  let cmin = -1;
+  const cdf = new Float64Array(256);
+  for (let v = 0; v < 256; v++) {
+    acc += hist[v];
+    cdf[v] = acc;
+    if (cmin < 0 && acc > 0) cmin = acc;
+  }
+  const denom = Math.max(n - cmin, 1);
+  const map = new Float64Array(256);
+  for (let v = 0; v < 256; v++) map[v] = Math.max(0, Math.round(((cdf[v] - cmin) / denom) * 255));
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const y = lum[p];
+    if (y === 0) {
+      d[i] = d[i + 1] = d[i + 2] = map[0];
+      continue;
+    }
+    const k = map[y] / y;
+    d[i] = Math.min(255, d[i] * k);
+    d[i + 1] = Math.min(255, d[i + 1] * k);
+    d[i + 2] = Math.min(255, d[i + 2] * k);
+  }
+}
+
+interface Enhance {
+  b: number; // brightness -0.5..0.5
+  c: number; // contrast -50..80
+  eq: boolean; // histogram equalization
+}
+const NO_ENHANCE: Enhance = { b: 0, c: 0, eq: false };
+
 // --------------------------------------------------------------------------- component
 
 export default function Annotator() {
@@ -79,6 +122,8 @@ export default function Annotator() {
   const [conf, setConf] = useState<number>(() => readPref("la.conf", 0.3));
   const [autoSuggest, setAutoSuggest] = useState<boolean>(() => readPref("la.auto", true));
   const [showMasks, setShowMasks] = useState(true);
+  const [enh, setEnh] = useState<Enhance>(() => readPref("la.enh", NO_ENHANCE));
+  const imgRef = useRef<Konva.Image>(null);
 
   // segment tool state
   const [prompt, setPrompt] = useState<PromptPoint[]>([]);
@@ -176,8 +221,34 @@ export default function Annotator() {
       const el = new window.Image();
       el.onload = () => !cancelled && setImg(el);
       el.src = i.url;
-      if (p.mode === "assisted" && readPref("la.auto", true) && loaded.length === 0) {
-        runDetect(i.id, true);
+      if (p.mode === "assisted" && loaded.length === 0) {
+        // suggestions computed earlier by "Pre-label all images" open instantly
+        let pre: Suggestion[] = [];
+        try {
+          pre = (await api.suggestions(i.id)).suggestions;
+        } catch {
+          /* older server or none stored */
+        }
+        if (cancelled) return;
+        if (pre.length) {
+          setShapes(
+            pre.map((g) => ({
+              key: newKey(),
+              label: g.label,
+              x: g.x,
+              y: g.y,
+              w: g.w,
+              h: g.h,
+              score: g.score,
+              source: "ai_detect" as Source,
+              status: "suggested" as const,
+              edited: false,
+            })),
+          );
+          setStatus(`${pre.length} pre-labelled suggestion(s) — A accepts all, click one to review`);
+        } else if (readPref("la.auto", true)) {
+          runDetect(i.id, true);
+        }
       }
     })().catch((e) => setStatus(e.message));
     return () => {
@@ -185,6 +256,28 @@ export default function Annotator() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iid]);
+
+  // image enhancement for display only; the models always see the original file
+  useEffect(() => {
+    const node = imgRef.current;
+    writePref("la.enh", enh);
+    if (!node || !img) return;
+    const active = enh.b !== 0 || enh.c !== 0 || enh.eq;
+    if (active) {
+      node.cache({ pixelRatio: 1 });
+      const f: ((d: ImageData) => void)[] = [];
+      if (enh.eq) f.push(equalizeFilter);
+      if (enh.b !== 0) f.push(Konva.Filters.Brighten);
+      if (enh.c !== 0) f.push(Konva.Filters.Contrast);
+      node.filters(f);
+      node.brightness(enh.b);
+      node.contrast(enh.c);
+    } else {
+      node.filters([]);
+      node.clearCache();
+    }
+    node.getLayer()?.batchDraw();
+  }, [enh, img]);
 
   useEffect(() => {
     fit();
@@ -451,6 +544,7 @@ export default function Annotator() {
       else if (k === "r" && assisted && selected) refineSelected();
       else if (k === "f") fit();
       else if (k === "m") setShowMasks((m) => !m);
+      else if (k === "e") setEnh((x) => ({ ...x, eq: !x.eq }));
       else if (k === "delete" || k === "backspace") remove(selected);
       else if (k === "escape") {
         setPrompt([]);
@@ -636,7 +730,7 @@ export default function Annotator() {
           >
             <Layer>
               <Group x={view.x} y={view.y} scaleX={view.scale} scaleY={view.scale}>
-                {img && <KImage image={img} name="image" />}
+                {img && <KImage ref={imgRef} image={img} name="image" />}
                 {sorted.map((s) => {
                   const color = labelColor(s.label, labels);
                   const sugg = s.status === "suggested";
@@ -755,6 +849,28 @@ export default function Annotator() {
                 </button>
               ))}
             </div>
+          </section>
+
+          <section>
+            <h3>Image</h3>
+            <label className="slider">
+              <span>Brightness <b className="mono">{Math.round(enh.b * 100)}</b></span>
+              <input type="range" min={-0.5} max={0.5} step={0.05} value={enh.b}
+                onChange={(e) => setEnh({ ...enh, b: Number(e.target.value) })} />
+            </label>
+            <label className="slider">
+              <span>Contrast <b className="mono">{enh.c}</b></span>
+              <input type="range" min={-50} max={80} step={5} value={enh.c}
+                onChange={(e) => setEnh({ ...enh, c: Number(e.target.value) })} />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={enh.eq} onChange={(e) => setEnh({ ...enh, eq: e.target.checked })} />
+              Auto-contrast (histogram equalization) <span className="kbd">E</span>
+            </label>
+            {(enh.b !== 0 || enh.c !== 0 || enh.eq) && (
+              <button className="btn small" onClick={() => setEnh(NO_ENHANCE)}>Reset image</button>
+            )}
+            <p className="muted small">Display only: the AI always sees the original photo.</p>
           </section>
 
           {assisted && (

@@ -109,3 +109,40 @@ def test_ai_segment_and_detect(client):
     assert 90 <= seg["x"] <= 110 and 110 <= seg["w"] <= 130 and len(seg["polygon"]) >= 3
     r = client.post(f"/api/images/{im['id']}/ai/detect", json={"conf": 0.25})
     assert r.status_code == 200 and isinstance(r.json()["suggestions"], list)
+
+
+def test_batch_prelabel_with_fake_detector(client, monkeypatch):
+    import time as _t
+
+    from app import main, ml
+
+    class FakeDet:
+        weights = "fake.pt"
+
+        def predict(self, path, conf=0.25, labels=None):
+            return [ml.Detection("zebra", 0.9, 10, 20, 30, 40)]
+
+    monkeypatch.setattr(ml, "detector", lambda: FakeDet())
+    p = _project(client)
+    ims = client.post(f"/api/projects/{p['id']}/images",
+                      files=[("files", (f"{i}.jpg", _img(), "image/jpeg")) for i in range(3)]).json()["created"]
+    r = client.post(f"/api/projects/{p['id']}/ai/prelabel", json={"conf": 0.3})
+    assert r.status_code == 202 and r.json()["total"] == 3
+    for _ in range(50):
+        st = client.get(f"/api/projects/{p['id']}/ai/prelabel").json()
+        if not st["running"]:
+            break
+        _t.sleep(0.05)
+    assert st["done"] == 3 and st["boxes"] == 3 and st["images_with_suggestions"] == 3
+    sug = client.get(f"/api/images/{ims[0]['id']}/suggestions").json()
+    assert sug["suggestions"][0]["label"] == "zebra" and sug["model"] == "fake.pt"
+    # saving the image clears its stored suggestions
+    client.put(f"/api/images/{ims[0]['id']}/annotations", json={"annotations": [], "done": True})
+    assert client.get(f"/api/images/{ims[0]['id']}/suggestions").json()["suggestions"] == []
+    # a second run skips done images and those that already have suggestions
+    assert client.post(f"/api/projects/{p['id']}/ai/prelabel", json={}).json()["total"] == 0
+
+
+def test_prelabel_blocked_in_manual_mode(client):
+    p = _project(client, mode="manual")
+    assert client.post(f"/api/projects/{p['id']}/ai/prelabel", json={}).status_code == 409

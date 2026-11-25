@@ -11,6 +11,8 @@ Prof. Dr.-Ing. Binh Vu) — no existing annotation tool is forked or wrapped.
 | **Auto-suggest** — boxes with labels appear when an image opens; accept all with `A`, fix the rest | YOLO11 (Ultralytics), COCO-pretrained or fine-tuned | Drawing every box by hand |
 | **Smart segment** — click an object (shift-click = background) or drag a rough box → precise mask | MobileSAM (CPU) or SAM 2.1 (GPU) | Tracing outlines point by point |
 | **Fit mask to box** — `R` turns any selected box into a mask and tightens the box | same | Getting pixel-tight boxes |
+| **Batch pre-label** — one button runs the detector over all unfinished images in the background; images then open with suggestions already in place | YOLO11 | Waiting for the model on every image |
+| **Image enhancement** — brightness, contrast and auto-contrast (histogram equalization, `E`) for dark or hazy photos; display only, the models see the original | — (image processing) | Missing animals in shadow or at dusk |
 
 Plus: projects with label sets, drag-and-drop upload, zoom/pan, move/resize, relabel with `1–9`,
 undo, keyboard-first workflow, export to **COCO JSON**, **YOLO** and **YOLO-seg** (images included),

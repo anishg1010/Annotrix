@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, ImageInfo, Project } from "../api";
+import { api, ImageInfo, PrelabelStatus, Project } from "../api";
 
 export default function ProjectPage() {
   const pid = Number(useParams().pid);
@@ -14,6 +14,7 @@ export default function ProjectPage() {
   const [labelsText, setLabelsText] = useState("");
   const [format, setFormat] = useState("coco");
   const [onlyDone, setOnlyDone] = useState(true);
+  const [job, setJob] = useState<PrelabelStatus | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -23,6 +24,37 @@ export default function ProjectPage() {
     setImages(ims);
     setStats(st);
   }, [pid]);
+
+  // batch pre-labelling: show status, poll while it runs, refresh when it ends
+  useEffect(() => {
+    api.prelabelStatus(pid).then(setJob).catch(() => {});
+  }, [pid]);
+  useEffect(() => {
+    if (!job?.running) return;
+    const t = setInterval(() => {
+      api.prelabelStatus(pid).then((j) => {
+        setJob(j);
+        if (!j.running) load().catch(() => {});
+      }).catch(() => {});
+    }, 1000);
+    return () => clearInterval(t);
+  }, [job?.running, pid, load]);
+
+  async function startPrelabel() {
+    setMsg("");
+    let conf = 0.3;
+    try {
+      const v = localStorage.getItem("la.conf");
+      if (v) conf = JSON.parse(v);
+    } catch {
+      /* storage unavailable */
+    }
+    try {
+      setJob(await api.prelabel(pid, conf));
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  }
 
   useEffect(() => {
     load().catch((e) => setMsg(e.message));
@@ -136,6 +168,36 @@ export default function ProjectPage() {
           </div>
         )}
       </section>
+
+      {project.mode === "assisted" && images.length > 0 && (
+        <section className="panel">
+          <h2>AI pre-label</h2>
+          <p className="muted">
+            Runs the detector over every unfinished image in the background, so each image opens with its
+            suggestions already in place. You then only review: <b>A</b> to accept, fix, <b>Enter</b>.
+          </p>
+          <div className="row gap">
+            <button className="btn primary" disabled={!!job?.running} onClick={startPrelabel}>
+              {job?.running ? "Pre-labelling…" : "Pre-label all images"}
+            </button>
+            {job?.running && (
+              <button className="btn" onClick={() => api.cancelPrelabel(pid)}>Stop</button>
+            )}
+            <span className="mono muted small">
+              {job?.running
+                ? `${job.done}/${job.total} images · ${job.boxes} boxes`
+                : job && job.total > 0
+                  ? `last run: ${job.done}/${job.total} images · ${job.boxes} boxes`
+                  : ""}
+              {job?.images_with_suggestions ? ` · ${job.images_with_suggestions} image(s) waiting for review` : ""}
+            </span>
+          </div>
+          {job?.running && job.total > 0 && (
+            <div className="progress"><div style={{ width: `${(100 * job.done) / job.total}%` }} /></div>
+          )}
+          {job?.error && <p className="error">{job.error}</p>}
+        </section>
+      )}
 
       <div className="two-col">
         <section className="panel">

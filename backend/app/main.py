@@ -5,6 +5,7 @@ Run locally:  uvicorn app.main:app --reload   (from the backend/ folder)
 from __future__ import annotations
 
 import io
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -19,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, func, select
 
 from . import config, ml
-from .db import Annotation, Image, Project, WorkSession, get_session, utcnow
+from .db import Annotation, Image, Project, Suggestion, WorkSession, engine, get_session, utcnow
 from .export import export_zip
 
 app = FastAPI(title="Annotrix", version="0.1.0")
@@ -204,6 +205,8 @@ def delete_project(pid: int, s: Session = Depends(get_session)):
             s.delete(a)
         for w in s.exec(select(WorkSession).where(WorkSession.image_id == im.id)).all():
             s.delete(w)
+        for g in s.exec(select(Suggestion).where(Suggestion.image_id == im.id)).all():
+            s.delete(g)
         (config.IMAGES_DIR / im.stored_name).unlink(missing_ok=True)
         s.delete(im)
     s.delete(p)
@@ -288,6 +291,8 @@ def delete_image(iid: int, s: Session = Depends(get_session)):
         s.delete(a)
     for w in s.exec(select(WorkSession).where(WorkSession.image_id == iid)).all():
         s.delete(w)
+    for g in s.exec(select(Suggestion).where(Suggestion.image_id == iid)).all():
+        s.delete(g)
     (config.IMAGES_DIR / im.stored_name).unlink(missing_ok=True)
     s.delete(im)
     s.commit()
@@ -334,6 +339,9 @@ def save_annotations(iid: int, body: SaveIn, s: Session = Depends(get_session)):
         saved.append(row)
     im.status = "done" if body.done else "new"
     s.add(im)
+    # the image has been reviewed: pre-computed suggestions are no longer needed
+    for g in s.exec(select(Suggestion).where(Suggestion.image_id == iid)).all():
+        s.delete(g)
     if body.session is not None:
         s.add(
             WorkSession(
@@ -389,6 +397,100 @@ def ai_segment(iid: int, body: SegmentIn, s: Session = Depends(get_session)):
     if r is None:
         raise HTTPException(422, "no object found at that prompt")
     return {"model": ml.segmenter().weights, "ms": round((time.perf_counter() - t0) * 1000), **r.__dict__}
+
+
+# --------------------------------------------------------------------------- batch pre-labelling
+
+class PrelabelIn(BaseModel):
+    conf: float = Field(0.3, ge=0.01, le=0.99)
+    overwrite: bool = False  # also redo images that already have stored suggestions
+
+
+# project id -> progress; kept in memory (a restart simply forgets running jobs)
+_jobs: dict[int, dict] = {}
+_jobs_lock = threading.Lock()
+
+
+def _prelabel_worker(pid: int, image_ids: list[int], conf: float) -> None:
+    from sqlmodel import Session as DBSession
+
+    job = _jobs[pid]
+    try:
+        with DBSession(engine()) as s:
+            project = s.get(Project, pid)
+            labels = project.labels or None
+            for iid in image_ids:
+                if job.get("cancel"):
+                    break
+                im = s.get(Image, iid)
+                # skip images the user has meanwhile saved or deleted
+                if im is None or im.status == "done":
+                    job["done"] += 1
+                    continue
+                with ml.infer_lock:
+                    det = ml.detector()
+                    dets = det.predict(config.IMAGES_DIR / im.stored_name, conf=conf, labels=labels)
+                for g in s.exec(select(Suggestion).where(Suggestion.image_id == iid)).all():
+                    s.delete(g)
+                for d in dets:
+                    s.add(Suggestion(image_id=iid, label=d.label, x=d.x, y=d.y, w=d.w, h=d.h,
+                                     score=d.score, model=det.weights))
+                s.commit()
+                job["done"] += 1
+                job["boxes"] += len(dets)
+    except Exception as e:  # pragma: no cover - surfaced to the UI
+        job["error"] = str(e)
+    finally:
+        job["running"] = False
+        job["finished_at"] = time.time()
+
+
+@app.post("/api/projects/{pid}/ai/prelabel", status_code=202)
+def start_prelabel(pid: int, body: PrelabelIn = PrelabelIn(), s: Session = Depends(get_session)):
+    """Run the detector over every unfinished image in the background and store the
+    results as suggestions, so images open with their boxes already in place."""
+    p = _project(s, pid)
+    if p.mode == "manual":
+        raise HTTPException(409, "AI assistance is disabled in manual mode")
+    with _jobs_lock:
+        if _jobs.get(pid, {}).get("running"):
+            raise HTTPException(409, "pre-labelling is already running for this project")
+        have = set(s.exec(select(Suggestion.image_id).join(Image, Image.id == Suggestion.image_id)
+                          .where(Image.project_id == pid)).all())
+        annotated = set(s.exec(select(Annotation.image_id).join(Image, Image.id == Annotation.image_id)
+                               .where(Image.project_id == pid)).all())
+        ids = [i for i in s.exec(select(Image.id).where(Image.project_id == pid, Image.status != "done")
+                                 .order_by(Image.id)).all()
+               if i not in annotated and (body.overwrite or i not in have)]
+        _jobs[pid] = {"running": True, "total": len(ids), "done": 0, "boxes": 0, "error": None,
+                      "started_at": time.time(), "conf": body.conf}
+    threading.Thread(target=_prelabel_worker, args=(pid, ids, body.conf), daemon=True).start()
+    return _jobs[pid]
+
+
+@app.get("/api/projects/{pid}/ai/prelabel")
+def prelabel_status(pid: int, s: Session = Depends(get_session)):
+    _project(s, pid)
+    n = s.exec(select(func.count(func.distinct(Suggestion.image_id))).join(Image, Image.id == Suggestion.image_id)
+               .where(Image.project_id == pid)).one()
+    job = dict(_jobs.get(pid, {"running": False, "total": 0, "done": 0, "boxes": 0, "error": None}))
+    job["images_with_suggestions"] = n
+    return job
+
+
+@app.delete("/api/projects/{pid}/ai/prelabel", status_code=204)
+def cancel_prelabel(pid: int):
+    if pid in _jobs:
+        _jobs[pid]["cancel"] = True
+    return Response(status_code=204)
+
+
+@app.get("/api/images/{iid}/suggestions")
+def image_suggestions(iid: int, s: Session = Depends(get_session)):
+    _image(s, iid)
+    rows = s.exec(select(Suggestion).where(Suggestion.image_id == iid).order_by(Suggestion.id)).all()
+    return {"suggestions": [{"label": r.label, "score": r.score, "x": r.x, "y": r.y, "w": r.w, "h": r.h} for r in rows],
+            "model": rows[0].model if rows else None}
 
 
 # --------------------------------------------------------------------------- export & stats

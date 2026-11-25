@@ -53,6 +53,24 @@ class Annotation(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow)
 
 
+class Suggestion(SQLModel, table=True):
+    """A detector suggestion computed ahead of time by batch pre-labelling.
+
+    Not an annotation: the editor shows it as a dashed suggestion, and it is
+    removed once the image is saved (accepted suggestions become annotations).
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    image_id: int = Field(foreign_key="image.id", index=True)
+    label: str
+    x: float
+    y: float
+    w: float
+    h: float
+    score: float
+    model: str = ""
+
+
 class WorkSession(SQLModel, table=True):
     """One visit to an image in the editor, ending with a save.
 

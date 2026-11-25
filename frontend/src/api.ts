@@ -50,6 +50,15 @@ export interface Suggestion {
   h: number;
 }
 
+export interface PrelabelStatus {
+  running: boolean;
+  total: number;
+  done: number;
+  boxes: number;
+  error: string | null;
+  images_with_suggestions?: number;
+}
+
 export interface SegResult {
   polygon: number[][];
   x: number;
@@ -123,6 +132,12 @@ export const api = {
     ),
   segment: (iid: number, body: { points?: number[][]; point_labels?: number[]; box?: number[] }) =>
     req<SegResult>(`/api/images/${iid}/ai/segment`, json("POST", body)),
+  prelabel: (pid: number, conf: number) =>
+    req<PrelabelStatus>(`/api/projects/${pid}/ai/prelabel`, json("POST", { conf })),
+  prelabelStatus: (pid: number) => req<PrelabelStatus>(`/api/projects/${pid}/ai/prelabel`),
+  cancelPrelabel: (pid: number) => req<void>(`/api/projects/${pid}/ai/prelabel`, { method: "DELETE" }),
+  suggestions: (iid: number) =>
+    req<{ suggestions: Suggestion[]; model: string | null }>(`/api/images/${iid}/suggestions`),
   stats: (pid: number) => req<Record<string, Record<string, number>>>(`/api/projects/${pid}/stats`),
   exportUrl: (pid: number, format: string, onlyDone: boolean) =>
     `/api/projects/${pid}/export?format=${format}&only_done=${onlyDone}`,
