@@ -89,6 +89,7 @@ python eval/eval_segmenter.py                        # click-to-segment mIoU / N
 python scripts/finetune.py --device 0                # fine-tune on a GPU (or notebooks/finetune_gpu.ipynb)
 python eval/eval_detector.py --weights yolo11s.pt data/weights/wildlife-yolo11s.pt
 python eval/effort.py --manual "Study manual" --assisted "Study assisted"   # after the user study
+python eval/study_quality.py eval/results/effort/study_assisted_setB_coco.zip --split test   # label quality of a study export
 ```
 
 Results are written to `eval/results/`. The protocol is in [docs/EVALUATION.md](docs/EVALUATION.md).
