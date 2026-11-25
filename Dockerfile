@@ -11,7 +11,7 @@ FROM python:3.12-slim
 # cpu (default) or e.g. cu124 for NVIDIA GPUs — see docker-compose.gpu.yml
 ARG TORCH_VARIANT=cpu
 ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 curl \
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 curl git \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/${TORCH_VARIANT}
 WORKDIR /app

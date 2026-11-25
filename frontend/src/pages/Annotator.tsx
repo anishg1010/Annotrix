@@ -334,7 +334,7 @@ export default function Annotator() {
       });
       setStatus(
         r.suggestions.length
-          ? `${r.suggestions.length} suggestion(s) in ${r.ms} ms — A accepts all, click one to review`
+          ? `${r.suggestions.length} suggestion(s) in ${r.ms} ms (${r.model}) — A accepts all, click one to review`
           : `No objects found above ${Math.round(conf * 100)}% confidence (${r.ms} ms)`,
       );
     } catch (e) {

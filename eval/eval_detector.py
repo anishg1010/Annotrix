@@ -86,9 +86,20 @@ def gallery(cases: list[tuple], img_dir: Path, names: dict[int, str], path: Path
 
 
 def evaluate(weights: str, gt: dict, img_dir: Path, conf: float, out_dir: Path) -> dict:
-    from app.ml import Detector
+    from app.ml import Detector, OpenVocabDetector
 
-    det = Detector(weights)
+    if "yoloe" in Path(weights).name or "world" in Path(weights).name:
+        # zero-shot: prompt the open-vocabulary model with the class names
+        ov = OpenVocabDetector(weights)
+        names = [c["name"] for c in gt["categories"]]
+
+        class _ZeroShot:
+            def predict(self, path, conf=0.25):
+                return ov.predict(path, conf=conf, labels=names)
+
+        det = _ZeroShot()
+    else:
+        det = Detector(weights)
     name_to_cat = {c["name"].lower(): c["id"] for c in gt["categories"]}
     cat_names = {c["id"]: c["name"] for c in gt["categories"]}
     gts_by_img: dict[int, list] = {}

@@ -1,0 +1,32 @@
+[
+  {
+    "weights": "../data/weights/yoloe-11s-seg.pt",
+    "conf_threshold_for_suggestions": 0.3,
+    "images": 227,
+    "mAP50": 0.5040234048566514,
+    "mAP50_95": 0.40969614396199344,
+    "per_class_AP50": {
+      "buffalo": 0.34004207710914214,
+      "elephant": 0.7073343580195537,
+      "rhino": 0.0066006600660066,
+      "zebra": 0.9621165242319035
+    },
+    "latency_ms_median": 223.4,
+    "actions": {
+      "accept": 229,
+      "adjust": 19,
+      "relabel": 88,
+      "delete": 24,
+      "draw": 42,
+      "matched_same_class": 245,
+      "n_gt": 375,
+      "n_suggested": 357
+    },
+    "gt_objects_covered_by_correct_suggestion": 0.653,
+    "boxes_to_draw_manual": 375,
+    "boxes_to_draw_assisted": 42,
+    "total_actions_manual": 375,
+    "total_actions_assisted": 402,
+    "unmapped_model_classes_above_conf": {}
+  }
+]

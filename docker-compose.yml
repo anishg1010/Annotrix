@@ -12,4 +12,5 @@ services:
       LA_DETECTOR: ${LA_DETECTOR:-yolo11s.pt}
       LA_SEGMENTER: ${LA_SEGMENTER:-mobile_sam.pt}
       LA_DEVICE: ${LA_DEVICE:-auto}
+      LA_OPEN_VOCAB: ${LA_OPEN_VOCAB-yoloe-11s-seg.pt}
     restart: unless-stopped

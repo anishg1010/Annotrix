@@ -118,9 +118,10 @@ def test_batch_prelabel_with_fake_detector(client, monkeypatch):
 
     class FakeDet:
         weights = "fake.pt"
+        names = {0: "zebra", 1: "elephant"}
 
         def predict(self, path, conf=0.25, labels=None):
-            return [ml.Detection("zebra", 0.9, 10, 20, 30, 40)]
+            return [ml.Detection("zebra", 0.9, 10, 20, 30, 40, "fake.pt")]
 
     monkeypatch.setattr(ml, "detector", lambda: FakeDet())
     p = _project(client)
@@ -146,3 +147,32 @@ def test_batch_prelabel_with_fake_detector(client, monkeypatch):
 def test_prelabel_blocked_in_manual_mode(client):
     p = _project(client, mode="manual")
     assert client.post(f"/api/projects/{p['id']}/ai/prelabel", json={}).status_code == 409
+
+
+def test_hybrid_detection_routes_unknown_labels_to_open_vocab(monkeypatch):
+    from pathlib import Path
+
+    from app import ml
+
+    calls = {}
+
+    class Closed:
+        weights = "closed.pt"
+        names = {0: "zebra", 1: "elephant"}
+
+        def predict(self, path, conf=0.25, labels=None):
+            calls["closed"] = labels
+            return [ml.Detection("zebra", 0.9, 0, 0, 5, 5, self.weights)]
+
+    class Open:
+        weights = "open.pt"
+
+        def predict(self, path, conf=0.25, labels=None):
+            calls["open"] = labels
+            return [ml.Detection("car", 0.5, 1, 1, 5, 5, self.weights)]
+
+    monkeypatch.setattr(ml, "detector", lambda: Closed())
+    monkeypatch.setattr(ml, "open_vocab", lambda: Open())
+    dets, used = ml.detect_labels(Path("x.jpg"), 0.3, ["Zebra", "car", "tree"])
+    assert calls == {"closed": ["Zebra"], "open": ["car", "tree"]}
+    assert used == ["closed.pt", "open.pt"] and {d.label for d in dets} == {"zebra", "car"}

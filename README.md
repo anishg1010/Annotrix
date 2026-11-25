@@ -11,6 +11,7 @@ Prof. Dr.-Ing. Binh Vu) — no existing annotation tool is forked or wrapped.
 | **Auto-suggest** — boxes with labels appear when an image opens; accept all with `A`, fix the rest | YOLO11 (Ultralytics), COCO-pretrained or fine-tuned | Drawing every box by hand |
 | **Smart segment** — click an object (shift-click = background) or drag a rough box → precise mask | MobileSAM (CPU) or SAM 2.1 (GPU) | Tracing outlines point by point |
 | **Fit mask to box** — `R` turns any selected box into a mask and tightens the box | same | Getting pixel-tight boxes |
+| **Type any label** — labels the trained detector knows use it; any other label (e.g. `car, person, backpack`) is detected zero-shot from its name | YOLOE (open-vocabulary, MobileCLIP text encoder) | Being limited to the detector's trained classes |
 | **Batch pre-label** — one button runs the detector over all unfinished images in the background; images then open with suggestions already in place | YOLO11 | Waiting for the model on every image |
 | **Image enhancement** — brightness, contrast and auto-contrast (histogram equalization, `E`) for dark or hazy photos; display only, the models see the original | — (image processing) | Missing animals in shadow or at dusk |
 
@@ -45,6 +46,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 |---|---|---|
 | `LA_DETECTOR` | `yolo11s.pt` | `yolo11n.pt`, `wildlife-yolo11s.pt` (fine-tuned, in `data/weights/`) |
 | `LA_SEGMENTER` | `mobile_sam.pt` | `sam2.1_t.pt`, `sam2.1_b.pt` |
+| `LA_OPEN_VOCAB` | `yoloe-11s-seg.pt` | `""` to disable open-vocabulary labels (first use downloads a ~600 MB text encoder) |
 | `LA_DEVICE` | `auto` | `cpu`, `cuda:0` |
 
 ### Without Docker (development)
@@ -101,6 +103,7 @@ Detector results (CPU, African Wildlife test split, 227 images / 375 objects):
 | detector | mAP@0.5 | mAP@0.5:0.95 | AP50 buffalo | AP50 elephant | AP50 rhino | AP50 zebra |
 |---|---|---|---|---|---|---|
 | yolo11s.pt (COCO) | 0.443 | 0.381 | 0.000 | 0.784 | 0.000 | 0.989 |
+| yoloe-11s-seg.pt (zero-shot, prompted with the 4 names) | 0.504 | 0.410 | 0.340 | 0.707 | 0.007 | 0.962 |
 | wildlife-yolo11n-cpu.pt (fine-tuned, 12 epochs on CPU) | **0.955** | **0.797** | 0.959 | 0.966 | 0.950 | 0.945 |
 
 COCO has no buffalo or rhino class, which motivates fine-tuning. With the fine-tuned detector, 93% of test animals get a correct suggestion and only 23 of 375 boxes must be drawn by hand (92 with the stock model).

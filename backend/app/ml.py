@@ -9,6 +9,7 @@ image embedding of the last image so repeated clicks on the same image are fast.
 """
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,6 +59,7 @@ class Detection:
     y: float
     w: float
     h: float
+    model: str = ""
 
 
 class Detector:
@@ -92,7 +94,50 @@ class Detector:
                     continue
                 name = wanted[name.lower()]
             x1, y1, x2, y2 = (float(v) for v in xyxy)
-            out.append(Detection(name, float(s), x1, y1, x2 - x1, y2 - y1))
+            out.append(Detection(name, float(s), x1, y1, x2 - x1, y2 - y1, self.weights))
+        return out
+
+
+class OpenVocabDetector:
+    """Zero-shot detector prompted with the project's label names (YOLOE).
+
+    A MobileCLIP text encoder turns each label into an embedding once; the
+    detector then finds objects matching those embeddings. Used only for labels
+    the main detector was not trained on.
+    """
+
+    def __init__(self, weights: str):
+        from ultralytics import YOLOE
+
+        self.weights = weights
+        self.model = YOLOE(_weights_path(weights))
+        self._classes: tuple[str, ...] = ()
+
+    def _set_classes(self, labels: list[str]) -> None:
+        key = tuple(labels)
+        if key == self._classes:
+            return
+        # the text encoder is downloaded next to the other weights on first use
+        cwd = os.getcwd()
+        config.WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+        os.chdir(config.WEIGHTS_DIR)
+        try:
+            self.model.set_classes(list(labels), self.model.get_text_pe(list(labels)))
+        finally:
+            os.chdir(cwd)
+        self._classes = key
+
+    def predict(self, image_path: Path, conf: float = 0.25, labels: Optional[list[str]] = None) -> list[Detection]:
+        if not labels:
+            return []
+        self._set_classes(labels)
+        res = self.model.predict(str(image_path), conf=conf, device=resolve_device(), verbose=False)[0]
+        out: list[Detection] = []
+        for xyxy, c, sc in zip(
+            res.boxes.xyxy.cpu().numpy(), res.boxes.cls.cpu().numpy().astype(int), res.boxes.conf.cpu().numpy()
+        ):
+            x1, y1, x2, y2 = (float(v) for v in xyxy)
+            out.append(Detection(labels[int(c)], float(sc), x1, y1, x2 - x1, y2 - y1, self.weights))
         return out
 
 
@@ -186,6 +231,7 @@ class Segmenter:
 
 _detector: Optional[Detector] = None
 _segmenter: Optional[Segmenter] = None
+_open_vocab: Optional[OpenVocabDetector] = None
 
 
 def detector() -> Detector:
@@ -194,6 +240,39 @@ def detector() -> Detector:
         if _detector is None:
             _detector = Detector(config.DETECTOR_WEIGHTS)
         return _detector
+
+
+def open_vocab() -> Optional[OpenVocabDetector]:
+    global _open_vocab
+    if not config.OPEN_VOCAB_WEIGHTS:
+        return None
+    with _lock:
+        if _open_vocab is None:
+            _open_vocab = OpenVocabDetector(config.OPEN_VOCAB_WEIGHTS)
+        return _open_vocab
+
+
+def detect_labels(image_path: Path, conf: float, labels: Optional[list[str]]) -> tuple[list[Detection], list[str]]:
+    """Hybrid detection: labels the trained detector knows go to it; any other
+    label is detected zero-shot by the open-vocabulary model.
+    Returns the detections and the names of the models that were used."""
+    det = detector()
+    if not labels:
+        return det.predict(image_path, conf=conf), [det.weights]
+    known = {n.lower() for n in det.names.values()}
+    closed = [l for l in labels if l.lower() in known]
+    other = [l for l in labels if l.lower() not in known]
+    out: list[Detection] = []
+    used: list[str] = []
+    if closed:
+        out += det.predict(image_path, conf=conf, labels=closed)
+        used.append(det.weights)
+    if other:
+        ov = open_vocab()
+        if ov is not None:
+            out += ov.predict(image_path, conf=conf, labels=other)
+            used.append(ov.weights)
+    return out, used
 
 
 def segmenter() -> Segmenter:

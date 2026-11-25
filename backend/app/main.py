@@ -128,6 +128,7 @@ def health():
         "device": ml.resolve_device(),
         "detector": config.DETECTOR_WEIGHTS,
         "segmenter": config.SEGMENTER_WEIGHTS,
+        "open_vocab": config.OPEN_VOCAB_WEIGHTS,
         "detector_loaded": ml._detector is not None,
         "segmenter_loaded": ml._segmenter is not None,
     }
@@ -372,9 +373,9 @@ def ai_detect(iid: int, body: DetectIn = DetectIn(), s: Session = Depends(get_se
     labels = project.labels if (body.only_project_labels and project.labels) else None
     t0 = time.perf_counter()
     with ml.infer_lock:
-        dets = ml.detector().predict(config.IMAGES_DIR / im.stored_name, conf=body.conf, labels=labels)
+        dets, used = ml.detect_labels(config.IMAGES_DIR / im.stored_name, body.conf, labels)
     return {
-        "model": ml.detector().weights,
+        "model": " + ".join(used),
         "ms": round((time.perf_counter() - t0) * 1000),
         "suggestions": [d.__dict__ for d in dets],
     }
@@ -428,13 +429,12 @@ def _prelabel_worker(pid: int, image_ids: list[int], conf: float) -> None:
                     job["done"] += 1
                     continue
                 with ml.infer_lock:
-                    det = ml.detector()
-                    dets = det.predict(config.IMAGES_DIR / im.stored_name, conf=conf, labels=labels)
+                    dets, _used = ml.detect_labels(config.IMAGES_DIR / im.stored_name, conf, labels)
                 for g in s.exec(select(Suggestion).where(Suggestion.image_id == iid)).all():
                     s.delete(g)
                 for d in dets:
                     s.add(Suggestion(image_id=iid, label=d.label, x=d.x, y=d.y, w=d.w, h=d.h,
-                                     score=d.score, model=det.weights))
+                                     score=d.score, model=d.model))
                 s.commit()
                 job["done"] += 1
                 job["boxes"] += len(dets)

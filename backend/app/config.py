@@ -12,6 +12,9 @@ WEIGHTS_DIR = Path(os.getenv("LA_WEIGHTS_DIR", DATA_DIR / "weights"))
 # Detector used for automatic pre-labelling. Can be a stock Ultralytics name
 # (downloaded on first use) or a path to fine-tuned weights, e.g. weights/wildlife-yolo11s.pt
 DETECTOR_WEIGHTS = os.getenv("LA_DETECTOR", "yolo11s.pt")
+# Open-vocabulary detector for labels the main detector does not know (text prompts).
+# Set LA_OPEN_VOCAB="" to disable.
+OPEN_VOCAB_WEIGHTS = os.getenv("LA_OPEN_VOCAB", "yoloe-11s-seg.pt")
 # Promptable segmenter used for click-to-segment and box-to-mask.
 SEGMENTER_WEIGHTS = os.getenv("LA_SEGMENTER", "mobile_sam.pt")
 # "auto" picks CUDA when available, otherwise CPU.

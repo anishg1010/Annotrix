@@ -7,3 +7,5 @@ ultralytics>=8.3.0
 pillow>=10.0
 opencv-python-headless>=4.9
 numpy>=1.26
+# text encoder tokenizer for the open-vocabulary detector (YOLOE)
+clip @ git+https://github.com/ultralytics/CLIP.git

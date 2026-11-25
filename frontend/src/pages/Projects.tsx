@@ -77,6 +77,10 @@ export default function Projects() {
           <label>
             Labels (comma separated)
             <input value={labels} onChange={(e) => setLabels(e.target.value)} />
+            <span className="small">
+              Any words work: labels the trained detector knows use it; any other label (e.g. "car, person,
+              backpack") is detected zero-shot by an open-vocabulary model from its name.
+            </span>
           </label>
           <label>
             Mode
